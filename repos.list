@@ -1,0 +1,38 @@
+repositories:
+  rsl_drive_sdk:
+    type: git
+    url: https://github.com/Duatic/rsl_drive_sdk
+    version: main
+  ethercat_sdk_master:
+    type: git
+    url: https://github.com/Duatic/ethercat_sdk_master
+    version: master
+  message_logger:
+    type: git
+    url: https://github.com/leggedrobotics/message_logger.git
+    version: foxy
+  soem_interface:
+    type: git
+    url: https://github.com/Duatic/soem_interface.git
+    version: master
+  dynaarm_description:
+    type: git
+    url: https://github.com/Duatic/dynaarm_description.git
+    version: main
+  dynaarm_driver:
+    type: git
+    url: https://github.com/Duatic/dynaarm_driver.git
+    version: main
+  dynaarm_demo:
+    type: git
+    url: https://github.com/Duatic/dynaarm_demo.git
+    version: main
+  dynaarm_gamepad_interface:
+    type: git
+    url: https://github.com/Duatic/dynaarm_gamepad_interface.git
+    version: main
+  cartesian_controllers:
+    type: git
+    url: https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers.git
+    version: ros2
+  

@@ -1,0 +1,45 @@
+services:
+
+  rosbridge-node:
+    image: ghcr.io/duatic/dynaarm_image:latest
+    container_name: rosbridge-node
+    ports:
+      - 9090:9090
+    networks:
+      dev-workspace-network:
+    command:
+      - ros2
+      - launch
+      - rosbridge_server
+      - rosbridge_websocket_launch.xml
+      - port:=9090
+
+  dynaarm-jazzy-dev-windows:    
+    extends:
+      file: docker-compose.override.yml      
+      service: dynaarm-jazzy-dev-base     
+    container_name: dynaarm-jazzy-dev-windows
+    networks:
+      dev-workspace-network:
+
+  dynaarm-jazzy-dev-linux:
+    extends:
+      file: docker-compose.override.yml      
+      service: dynaarm-jazzy-dev-base
+    container_name: dynaarm-jazzy-dev-linux        
+    devices:
+      - /dev/input:/dev/input
+      - /dev/dri:/dev/dri
+    network_mode: host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  duatic-root-cache:
+
+networks:
+  dev-workspace-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: "172.42.20.0/24"

@@ -1,0 +1,18 @@
+services:
+  dynaarm-jazzy-dev-windows:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  dynaarm-jazzy-dev-linux:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
