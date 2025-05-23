@@ -61,7 +61,7 @@ RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh && 
     bash /root/colcon_mixin.sh && colcon mixin update default
 
 COPY ../${REPOS_LIST} /root/${ROS_WS}
-RUN vcs import . < "/root/$ROS_WS/${REPOS_LIST}"
+RUN vcs import . < "/root/${ROS_WS}/${REPOS_LIST}"
 
 # rosdep setup and install dependencies
 RUN apt-get update && rosdep update
