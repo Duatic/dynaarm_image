@@ -1,34 +1,30 @@
 # syntax=docker/dockerfile:1.4
 
+############################
+# Stage 1: Build (minimal base)
+############################
 FROM ubuntu:22.04 as builder
 
-ENV SHELL=/bin/bash
-ENV TZ="Europe/Berlin"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=jazzy
 ENV ROS_WS=/ros2_ws
 ENV REPOS_LIST="repos.list"
 
-# Create workspace
-RUN mkdir -p ${ROS_WS}/src
-
-# Clone repo in src
-RUN apt update
-RUN apt install -y curl gnupg lsb-release
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+# Locale and tzdata setup
 RUN apt-get update && \
-    apt-get upgrade -y
-RUN apt-get install -y python3-vcstool
+    apt-get install -y locales tzdata && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && \
+    ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata
 
-RUN cd ${ROS_WS}/src
+# Set up sources and install ROS 2
+RUN apt-get update && apt-get install -y \
+    curl gnupg2 lsb-release ca-certificates
 
-RUN vcs import . < "../$REPOS_LIST"
-
-# RUN touch "${MAIN_DIR}/src/cartesian_controllers/cartesian_controller_simulation/COLCON_IGNORE" || true
-# RUN touch "${MAIN_DIR}/src/cartesian_controllers/cartesian_controller_tests/COLCON_IGNORE" || true
-
-# Run rosdep
-
+# Add ROS 2 GPG key and repo
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | apt-key add - && \
+    echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
 
 # Install build tools and ROS base packages
 RUN apt-get update && apt-get install -y \
@@ -51,8 +47,12 @@ RUN rosdep init && rosdep update
 RUN mkdir -p ${ROS_WS}/src
 WORKDIR ${ROS_WS}
 
+# Copy source repos (replace with actual)
+# COPY your.repos .
+RUN vcs import . < "../$REPOS_LIST"
+
 # Copy and run mixin script
-COPY /scripts/colcon_mixin.sh /root/
+COPY scripts/colcon_mixin.sh /root/
 RUN chmod +x /root/colcon_mixin.sh && bash /root/colcon_mixin.sh && colcon mixin update default
 
 # Install dependencies via rosdep
@@ -60,7 +60,6 @@ RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
 # Build the workspace
 RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue-on-error
-
 
 ############################
 # Stage 2: Runtime
