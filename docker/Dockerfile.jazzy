@@ -1,64 +1,72 @@
 # syntax=docker/dockerfile:1.4
 
 ############################
-# Stage 1: Build (minimal base)
+# Stage 1: Build
 ############################
-FROM ubuntu:22.04 as builder
+FROM docker.io/osrf/ros:jazzy-desktop-full as builder
 
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ROS_DISTRO=jazzy
+ENV SHELL=/bin/bash
+ENV ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV TZ="Europe/Berlin"
 ENV ROS_WS=/ros2_ws
-ENV REPOS_LIST="repos.list"
+ENV DISPLAY=:0
+ENV QT_X11_NO_MITSHM=1
+ENV REPOS_LIST=repos.list
 
-# Locale and tzdata setup
-RUN apt-get update && \
-    apt-get install -y locales tzdata && \
-    locale-gen en_US en_US.UTF-8 && \
-    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && \
-    ln -fs /usr/share/zoneinfo/Europe/Berlin /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata
-
-# Set up sources and install ROS 2
-RUN apt-get update && apt-get install -y \
-    curl gnupg2 lsb-release ca-certificates
-
-# Add ROS 2 GPG key and repo
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | apt-key add - && \
-    echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
-
-# Install build tools and ROS base packages
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    python3-colcon-common-extensions \
-    python3-pip \
-    python3-vcstool \
-    python3-rosdep \
-    python3-colcon-mixin \
-    ros-$ROS_DISTRO-desktop-full \
-    ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
-    && apt-get clean
-
-# Setup rosdep
-RUN rosdep init && rosdep update
-
-# Create workspace and copy sources
+# Create workspace
 RUN mkdir -p ${ROS_WS}/src
 WORKDIR ${ROS_WS}
 
-# Copy source repos (replace with actual)
-# COPY your.repos .
+# Install dependencies needed for building
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y \
+    git \
+    wget \
+    curl \
+    gnupg \
+    lsb-release \
+    apt-transport-https \
+    unzip \
+    gpg \
+    black \
+    ccache \
+    clang-format \
+    clang-format-14 \
+    python3-pip \
+    python3-vcstool \
+    python3-colcon-common-extensions \
+    python3-colcon-mixin \
+    python3-pandas \
+    pipx \
+    gdb \
+    xterm \
+    x11-apps \
+    ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
+    ros-$ROS_DISTRO-rqt-runtime-monitor \
+    ros-$ROS_DISTRO-rqt-robot-monitor \
+    ros-$ROS_DISTRO-plotjuggler \
+    ros-$ROS_DISTRO-plotjuggler-ros \
+    ros-$ROS_DISTRO-ros2controlcli \
+    ros-$ROS_DISTRO-joy \
+    ros-$ROS_DISTRO-rosbridge-suite && \
+    pip install pre-commit --break-system-packages && \
+    apt-get clean
+
+# Copy and run colcon mixin setup
+COPY scripts/colcon_mixin.sh /root/
+RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh && \
+    bash /root/colcon_mixin.sh && colcon mixin update default
+
 RUN vcs import . < "../$REPOS_LIST"
 
-# Copy and run mixin script
-COPY scripts/colcon_mixin.sh /root/
-RUN chmod +x /root/colcon_mixin.sh && bash /root/colcon_mixin.sh && colcon mixin update default
-
-# Install dependencies via rosdep
+# rosdep setup and install dependencies
+RUN apt-get update && rosdep update
 RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
-# Build the workspace
+# Build
 RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue-on-error
 
 ############################
@@ -66,16 +74,19 @@ RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue
 ############################
 FROM docker.io/osrf/ros:jazzy-desktop-full
 
-ENV ROS_DISTRO=jazzy
+ENV SHELL=/bin/bash
+ENV ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ENV TZ="Europe/Berlin"
 ENV ROS_WS=/ros2_ws
 ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-# Copy built files
+# Only copy the install and necessary files from the build stage
 COPY --from=builder ${ROS_WS}/install ${ROS_WS}/install
 COPY --from=builder ${ROS_WS}/src ${ROS_WS}/src
 
 WORKDIR ${ROS_WS}
 
-CMD ["/bin/bash"]
+# Source the workspace at container start
+CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source install/setup.bash && exec /bin/bash"]
