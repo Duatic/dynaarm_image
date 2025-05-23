@@ -1,97 +1,81 @@
 # syntax=docker/dockerfile:1.4
 
-ARG BASE_IMAGE=docker.io/osrf/ros:jazzy-desktop-full
-FROM ${BASE_IMAGE}
+FROM ubuntu:22.04 as builder
 
 ENV SHELL=/bin/bash
-ENV ROS_AUTOMATIC_DISCOVERY_RANGE=SUBNET
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-ENV PIP_BREAK_SYSTEM_PACKAGES=1
 ENV TZ="Europe/Berlin"
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DISTRO=jazzy
 ENV ROS_WS=/ros2_ws
-ENV DISPLAY=:0
-ENV QT_X11_NO_MITSHM=1
-
+ENV REPOS_LIST="repos.list"
 
 # Create workspace
 RUN mkdir -p ${ROS_WS}/src
 
-# Install dependencies
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y \
+# Clone repo in src
+RUN apt update
+RUN apt install -y curl gnupg lsb-release
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+RUN apt update
+RUN apt install -y python3-vcstool
+
+RUN cd ${ROS_WS}/src
+
+RUN vcs import . < "../$REPOS_LIST"
+
+# RUN touch "${MAIN_DIR}/src/cartesian_controllers/cartesian_controller_simulation/COLCON_IGNORE" || true
+# RUN touch "${MAIN_DIR}/src/cartesian_controllers/cartesian_controller_tests/COLCON_IGNORE" || true
+
+# Run rosdep
+
+
+# Install build tools and ROS base packages
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
     git \
-    wget \
-    curl \
-    gnupg \
-    lsb-release \
-    apt-transport-https \
-    unzip \
-    gpg \
-    black \
-    ccache \
-    clang-format \
-    clang-format-14 \
+    python3-colcon-common-extensions \
     python3-pip \
     python3-vcstool \
-    python3-colcon-common-extensions \
+    python3-rosdep \
     python3-colcon-mixin \
-    python3-pandas \
-    pipx \
-    gdb \
-    xterm \
-    x11-apps \
+    ros-$ROS_DISTRO-desktop-full \
     ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
-    ros-$ROS_DISTRO-rqt-runtime-monitor \
-    ros-$ROS_DISTRO-rqt-robot-monitor \
-    ros-$ROS_DISTRO-plotjuggler \
-    ros-$ROS_DISTRO-plotjuggler-ros \
-    ros-$ROS_DISTRO-ros2controlcli \
-    ros-$ROS_DISTRO-joy \
-    ros-$ROS_DISTRO-rosbridge-suite && \
-    pip install pre-commit --break-system-packages && \
-    apt-get clean
+    && apt-get clean
 
-# Bash-it (optional)
-RUN git clone --depth=1 https://github.com/Bash-it/bash-it.git ~/.bash_it && \
-    bash ~/.bash_it/install.sh
+# Setup rosdep
+RUN rosdep init && rosdep update
 
-# Copy config files
-COPY config/ /root/
-COPY scripts/colcon_mixin.sh /root/
-RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh
-RUN touch /root/.bash_history && find /root/ -type f -exec sed -i 's/\r$//' {} +
+# Create workspace and copy sources
+RUN mkdir -p ${ROS_WS}/src
+WORKDIR ${ROS_WS}
 
-# Mark Git repos safe
-RUN echo 'for repo_dir in /ros2_ws/src/*; do \
-            if [ -d "$repo_dir/.git" ]; then \
-              repo_dir_clean=$(realpath "$repo_dir"); \
-              git config --global --add safe.directory "$repo_dir_clean"; \
-            fi; \
-          done' > /usr/local/bin/mark-safe-directories.sh && \
-    chmod +x /usr/local/bin/mark-safe-directories.sh
+# Copy and run mixin script
+COPY /scripts/colcon_mixin.sh /root/
+RUN chmod +x /root/colcon_mixin.sh && bash /root/colcon_mixin.sh && colcon mixin update default
+
+# Install dependencies via rosdep
+RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
+
+# Build the workspace
+RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue-on-error
+
+
+############################
+# Stage 2: Runtime
+############################
+FROM docker.io/osrf/ros:jazzy-desktop-full
+
+ENV ROS_DISTRO=jazzy
+ENV ROS_WS=/ros2_ws
+ENV DISPLAY=:0
+ENV QT_X11_NO_MITSHM=1
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+# Copy built files
+COPY --from=builder ${ROS_WS}/install ${ROS_WS}/install
+COPY --from=builder ${ROS_WS}/src ${ROS_WS}/src
 
 WORKDIR ${ROS_WS}
 
-# ✅ Copy in your cloned source repositories
-COPY src/ ${ROS_WS}/src/
-
-# ✅ Mark Git repos safe
-RUN bash /usr/local/bin/mark-safe-directories.sh
-
-# ✅ Setup colcon mixins
-RUN bash /root/colcon_mixin.sh && colcon mixin update default
-
-# ✅ rosdep setup and install dependencies
-RUN apt-get update && rosdep update
-RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
-
-# ✅ Build with colcon
-RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue-on-error
-
-# Clean up (optional)
-RUN mkdir -p /root/.cache/history && \
-    touch /root/.cache/history/history.log && \
-    ln -sf /root/.cache/history/history.log /root/.bash_history
-
-CMD [ "/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source /ros2_ws/install/setup.bash" ]
+CMD ["/bin/bash"]
