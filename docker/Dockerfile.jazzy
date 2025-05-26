@@ -58,7 +58,7 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-moveit \
     ros-$ROS_DISTRO-ros2-control \
     ros-$ROS_DISTRO-ros2-controllers \
- && apt-get clean
+    && apt-get clean
 
 # Install MuJoCo 3.0.0
 RUN mkdir -p /root && \
@@ -107,6 +107,17 @@ ENV ROS_WS=/ros2_ws
 ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
 ENV LD_LIBRARY_PATH=/opt/ros/$ROS_DISTRO/lib:/usr/local/lib:$LD_LIBRARY_PATH
+
+
+# Runtime stage - also install Pinocchio again
+RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
+    mkdir -p /tmp/pinocchio/build && \
+    cd /tmp/pinocchio/build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+             -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
+    make -j$(nproc) && make install && \
+    rm -rf /tmp/pinocchio
+
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
