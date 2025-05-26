@@ -60,21 +60,6 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-ros2-controllers \
     && apt-get clean
 
-# Install MuJoCo 3.0.0
-RUN mkdir -p /root && \
-    wget -q https://github.com/deepmind/mujoco/releases/download/3.0.0/mujoco-3.0.0-linux-x86_64.tar.gz -O /tmp/mujoco.tar.gz && \
-    tar -xzf /tmp/mujoco.tar.gz -C /root && \
-    rm /tmp/mujoco.tar.gz
-
-# Install Pinocchio manually
-RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
-    mkdir -p /tmp/pinocchio/build && \
-    cd /tmp/pinocchio/build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
-             -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
-    make -j$(nproc) && make install && \
-    rm -rf /tmp/pinocchio
-
 # colcon mixin setup
 COPY scripts/colcon_mixin.sh /root/
 RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh
@@ -83,6 +68,10 @@ RUN bash /root/colcon_mixin.sh && colcon mixin update default
 # Clone repos
 COPY ../${REPOS_LIST} /root/${ROS_WS}/
 RUN vcs import ${ROS_WS}/src < /root/${ROS_WS}/${REPOS_LIST}
+
+# Ignore selected packages
+RUN touch ${ROS_WS}/src/cartesian_controllers/cartesian_controller_simulation/COLCON_IGNORE && \
+    touch ${ROS_WS}/src/cartesian_controllers/cartesian_controller_tests/COLCON_IGNORE
 
 # rosdep
 RUN apt-get update && rosdep fix-permissions
@@ -109,35 +98,24 @@ ENV QT_X11_NO_MITSHM=1
 ENV LD_LIBRARY_PATH=/opt/ros/$ROS_DISTRO/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
 
-# Runtime stage - also install Pinocchio again
-RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
-    mkdir -p /tmp/pinocchio/build && \
-    cd /tmp/pinocchio/build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
-             -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
-    make -j$(nproc) && make install && \
-    rm -rf /tmp/pinocchio
-
-
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
-    ros-$ROS_DISTRO-rqt-runtime-monitor \
-    ros-$ROS_DISTRO-rqt-robot-monitor \
-    ros-$ROS_DISTRO-plotjuggler \
-    ros-$ROS_DISTRO-plotjuggler-ros \
     ros-$ROS_DISTRO-ros2controlcli \
     ros-$ROS_DISTRO-joy \
     ros-$ROS_DISTRO-rosbridge-suite \
     ros-$ROS_DISTRO-moveit \
     ros-$ROS_DISTRO-ros2-control \
     ros-$ROS_DISTRO-ros2-controllers \
-    ros-${ROS_DISTRO}-joint-state-publisher-gui
+    ros-$ROS_DISTRO-joint-state-publisher-gui
 
 # Copy full workspace
 COPY --from=builder ${ROS_WS} ${ROS_WS}
-COPY --from=builder /root/mujoco-3.0.0 /root/mujoco-3.0.0
 
 WORKDIR ${ROS_WS}
+
+# Ignore selected packages
+RUN touch ${ROS_WS}/src/cartesian_controllers/cartesian_controller_simulation/COLCON_IGNORE && \
+    touch ${ROS_WS}/src/cartesian_controllers/cartesian_controller_tests/COLCON_IGNORE
 
 CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source /ros2_ws/install/setup.bash && exec /bin/bash"]
