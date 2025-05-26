@@ -55,6 +55,9 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-ros2controlcli \
     ros-$ROS_DISTRO-joy \
     ros-$ROS_DISTRO-rosbridge-suite \
+    ros-$ROS_DISTRO-moveit \
+    ros-$ROS_DISTRO-ros2-control \
+    ros-$ROS_DISTRO-ros2-controllers \
  && apt-get clean
 
 # Install MuJoCo 3.0.0
@@ -105,14 +108,17 @@ ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
 ENV LD_LIBRARY_PATH=/opt/ros/$ROS_DISTRO/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-# Install RMW implementation again in runtime image
-RUN apt-get update && apt-get install -y ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-moveit \
+    ros-${ROS_DISTRO}-ros2-control \
+    ros-${ROS_DISTRO}-ros2-controllers
 
-# Copy full workspace from builder
+# Copy full workspace
 COPY --from=builder ${ROS_WS} ${ROS_WS}
 COPY --from=builder /root/mujoco-3.0.0 /root/mujoco-3.0.0
 
 WORKDIR ${ROS_WS}
 
 CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source /ros2_ws/install/setup.bash && exec /bin/bash"]
-
