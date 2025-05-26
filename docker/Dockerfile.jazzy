@@ -105,10 +105,14 @@ ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
 ENV LD_LIBRARY_PATH=/opt/ros/$ROS_DISTRO/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-# Copy entire workspace to keep build/install/log valid
+# Install RMW implementation again in runtime image
+RUN apt-get update && apt-get install -y ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
+
+# Copy full workspace from builder
 COPY --from=builder ${ROS_WS} ${ROS_WS}
 COPY --from=builder /root/mujoco-3.0.0 /root/mujoco-3.0.0
 
 WORKDIR ${ROS_WS}
 
 CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source /ros2_ws/install/setup.bash && exec /bin/bash"]
+
