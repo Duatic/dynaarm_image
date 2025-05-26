@@ -23,8 +23,13 @@ jobs:
       - name: Read version from file
         id: read-version
         run: |
+          if [[ ! -f version.txt ]]; then
+            echo "version.txt not found!" >&2
+            exit 1
+          fi
           version_file=$(cat version.txt)
           echo "VERSION_TXT=${version_file}" >> $GITHUB_ENV
+
 
       - name: Get latest published tag from GHCR
         id: get-latest-tag
