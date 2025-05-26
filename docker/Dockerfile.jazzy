@@ -19,7 +19,7 @@ ENV REPOS_LIST=repos.list
 RUN mkdir -p ${ROS_WS}/src
 WORKDIR ${ROS_WS}
 
-# Install required tools and ROS dependencies
+# Install dependencies
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y \
@@ -32,12 +32,6 @@ RUN apt-get update && \
     unzip \
     gpg \
     ccache \
-    black \
-    clang-format \
-    clang-format-14 \
-    gdb \
-    xterm \
-    x11-apps \
     build-essential \
     cmake \
     pkg-config \
@@ -60,26 +54,35 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-plotjuggler-ros \
     ros-$ROS_DISTRO-ros2controlcli \
     ros-$ROS_DISTRO-joy \
-    ros-$ROS_DISTRO-rosbridge-suite && \
-    pip install pre-commit --break-system-packages && \
-    apt-get clean
+    ros-$ROS_DISTRO-rosbridge-suite \
+ && apt-get clean
 
-# Copy and run colcon mixin setup
+# === Manually install Pinocchio ===
+RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
+    mkdir -p /tmp/pinocchio/build && \
+    cd /tmp/pinocchio/build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+             -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
+    make -j$(nproc) && make install && \
+    rm -rf /tmp/pinocchio
+
+# colcon mixin setup
 COPY scripts/colcon_mixin.sh /root/
 RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh
 RUN bash /root/colcon_mixin.sh && colcon mixin update default
 
-# Import repos
+# Clone repos (WITHOUT pinocchio)
 COPY ../${REPOS_LIST} /root/${ROS_WS}/
 RUN vcs import . < /root/${ROS_WS}/${REPOS_LIST}
 
-# Install ROS dependencies via rosdep
+# rosdep
 RUN apt-get update && rosdep fix-permissions
 RUN rosdep update
 RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
-# Build everything (including pinocchio) using colcon
+# Build ROS packages
 RUN . /opt/ros/$ROS_DISTRO/setup.sh && \
+    export CMAKE_PREFIX_PATH=/usr/local:$CMAKE_PREFIX_PATH && \
     colcon build --symlink-install --continue-on-error
 
 ############################
@@ -95,11 +98,9 @@ ENV ROS_WS=/ros2_ws
 ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
 
-# Copy only what’s needed
 COPY --from=builder ${ROS_WS}/install ${ROS_WS}/install
 COPY --from=builder ${ROS_WS}/src ${ROS_WS}/src
 
 WORKDIR ${ROS_WS}
 
-# Source ROS and the workspace on container startup
 CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source install/setup.bash && exec /bin/bash"]
