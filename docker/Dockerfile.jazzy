@@ -78,9 +78,9 @@ COPY scripts/colcon_mixin.sh /root/
 RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh
 RUN bash /root/colcon_mixin.sh && colcon mixin update default
 
-# Clone repos (WITHOUT pinocchio)
+# Clone repos
 COPY ../${REPOS_LIST} /root/${ROS_WS}/
-RUN vcs import . < /root/${ROS_WS}/${REPOS_LIST}
+RUN vcs import ${ROS_WS}/src < /root/${ROS_WS}/${REPOS_LIST}
 
 # rosdep
 RUN apt-get update && rosdep fix-permissions
