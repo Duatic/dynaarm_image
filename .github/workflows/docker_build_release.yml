@@ -20,6 +20,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Read version from file
+        id: read-version
+        run: |
+          version_file=$(cat version.txt)
+          echo "VERSION_TXT=${version_file}" >> $GITHUB_ENV
+
+      - name: Get latest published tag from GHCR
+        id: get-latest-tag
+        run: |
+          tags=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/v2/${{ github.repository_owner }}/dynaarm_image/tags/list" | jq -r '.tags[]' || echo "")
+
+          if [[ -z "$tags" ]]; then
+            echo "LATEST_TAG=0.0.0" >> $GITHUB_ENV
+          else
+            latest=$(echo "$tags" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+            echo "LATEST_TAG=${latest}" >> $GITHUB_ENV
+          fi
+
+      - name: Determine final image version
+        id: determine-version
+        run: |
+          function version_gt() { [ "$(printf '%s\n' "$@" | sort -V | tail -n 1)" != "$1" ]; }
+
+          if version_gt "$LATEST_TAG" "$VERSION_TXT"; then
+            # Bump version from latest
+            IFS='.' read -r major minor patch <<< "$LATEST_TAG"
+            patch=$((patch + 1))
+            final_version="${major}.${minor}.${patch}"
+          else
+            final_version="$VERSION_TXT"
+          fi
+
+          echo "Using version: $final_version"
+          echo "FINAL_TAG=$final_version" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -36,4 +72,6 @@ jobs:
           context: .
           file: ./docker/Dockerfile.jazzy
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.FINAL_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
