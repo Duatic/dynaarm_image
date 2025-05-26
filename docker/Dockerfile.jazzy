@@ -52,9 +52,16 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-ros2controlcli \
     ros-$ROS_DISTRO-joy \
     ros-$ROS_DISTRO-rosbridge-suite && \
-    robotpkg-py3-pinocchio \
     pip install pre-commit --break-system-packages && \
     apt-get clean
+
+RUN git clone https://github.com/stack-of-tasks/pinocchio.git
+RUN cd pinocchio
+RUN mkdir build && cd build
+RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_INTERFACE=OFF
+RUN make -j$(nproc)
+RUN make install
+
 
 # Copy and run colcon mixin setup
 COPY scripts/colcon_mixin.sh /root/
