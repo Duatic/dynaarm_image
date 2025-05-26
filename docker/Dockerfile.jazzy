@@ -54,13 +54,19 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-rosbridge-suite && \
     pip install pre-commit --break-system-packages && \
     apt-get clean
+  
+RUN apt update
+RUN apt install build-essential cmake pkg-config git
+RUN apt install libeigen3-dev libboost-all-dev
+RUN apt install robotpkg-py3-pinocchio
 
-RUN git clone https://github.com/stack-of-tasks/pinocchio.git
-RUN cd pinocchio
-RUN mkdir build && cd build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_INTERFACE=OFF
-RUN make -j$(nproc)
-RUN make install
+    
+# RUN git clone https://github.com/stack-of-tasks/pinocchio.git
+# RUN cd pinocchio
+# RUN mkdir build && cd build
+# RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_INTERFACE=OFF
+# RUN make -j$(nproc)
+# RUN make install
 
 
 # Copy and run colcon mixin setup
