@@ -79,7 +79,7 @@ RUN rosdep update
 RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
 # Build
-RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue-on-error
+RUN . /opt/ros/$ROS_DISTRO/setup.sh && colcon build --symlink-install --continue-on-error --cmake-args -DCMAKE_PREFIX_PATH=/usr/local
 
 ############################
 # Stage 2: Runtime
