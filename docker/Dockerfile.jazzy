@@ -23,17 +23,42 @@ WORKDIR ${ROS_WS}
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y \
-    git wget curl gnupg lsb-release apt-transport-https unzip gpg ccache \
-    build-essential cmake pkg-config libeigen3-dev libboost-all-dev \
-    liburdfdom-dev liburdfdom-headers-dev liboctomap-dev \
-    python3-pip python3-dev python3-numpy \
-    python3-vcstool python3-colcon-common-extensions python3-colcon-mixin python3-pandas \
+    git \
+    wget \
+    curl \
+    gnupg \
+    lsb-release \
+    apt-transport-https \
+    unzip \
+    gpg \
+    ccache \
+    build-essential \
+    cmake \
+    pkg-config \
+    libeigen3-dev \
+    libboost-all-dev \
+    liburdfdom-dev \
+    liburdfdom-headers-dev \
+    liboctomap-dev \
+    python3-pip \
+    python3-dev \
+    python3-numpy \
+    python3-vcstool \
+    python3-colcon-common-extensions \
+    python3-colcon-mixin \
+    python3-pandas \
     ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
-    ros-$ROS_DISTRO-rqt-runtime-monitor ros-$ROS_DISTRO-rqt-robot-monitor \
-    ros-$ROS_DISTRO-plotjuggler ros-$ROS_DISTRO-plotjuggler-ros \
-    ros-$ROS_DISTRO-ros2controlcli ros-$ROS_DISTRO-joy ros-$ROS_DISTRO-rosbridge-suite \
-    ros-$ROS_DISTRO-moveit ros-$ROS_DISTRO-ros2-control ros-$ROS_DISTRO-ros2-controllers \
-    && rm -rf /var/lib/apt/lists/*
+    ros-$ROS_DISTRO-rqt-runtime-monitor \
+    ros-$ROS_DISTRO-rqt-robot-monitor \
+    ros-$ROS_DISTRO-plotjuggler \
+    ros-$ROS_DISTRO-plotjuggler-ros \
+    ros-$ROS_DISTRO-ros2controlcli \
+    ros-$ROS_DISTRO-joy \
+    ros-$ROS_DISTRO-rosbridge-suite \
+    ros-$ROS_DISTRO-moveit \
+    ros-$ROS_DISTRO-ros2-control \
+    ros-$ROS_DISTRO-ros2-controllers \
+    && apt-get clean
 
 # Install MuJoCo 3.0.0
 RUN mkdir -p /root && \
@@ -41,28 +66,28 @@ RUN mkdir -p /root && \
     tar -xzf /tmp/mujoco.tar.gz -C /root && \
     rm /tmp/mujoco.tar.gz
 
-# Install Pinocchio
+# Install Pinocchio manually
 RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
-    mkdir -p /tmp/pinocchio/build && cd /tmp/pinocchio/build && \
+    mkdir -p /tmp/pinocchio/build && \
+    cd /tmp/pinocchio/build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
-        -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
+             -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
     make -j$(nproc) && make install && \
     rm -rf /tmp/pinocchio
 
 # colcon mixin setup
 COPY scripts/colcon_mixin.sh /root/
-RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh && \
-    bash /root/colcon_mixin.sh && colcon mixin update default
+RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh
+RUN bash /root/colcon_mixin.sh && colcon mixin update default
 
 # Clone repos
 COPY ../${REPOS_LIST} /root/${ROS_WS}/
 RUN vcs import ${ROS_WS}/src < /root/${ROS_WS}/${REPOS_LIST}
 
 # rosdep
-RUN apt-get update && rosdep fix-permissions && \
-    rosdep update && \
-    rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && rosdep fix-permissions
+RUN rosdep update
+RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
 # Build
 RUN . /opt/ros/$ROS_DISTRO/setup.sh && \
@@ -83,29 +108,34 @@ ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
 ENV LD_LIBRARY_PATH=/opt/ros/$ROS_DISTRO/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-# Install only necessary runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
-    ros-${ROS_DISTRO}-moveit \
-    ros-${ROS_DISTRO}-ros2-control \
-    ros-${ROS_DISTRO}-ros2-controllers \
-    ros-${ROS_DISTRO}-joint-state-publisher-gui \
-    && rm -rf /var/lib/apt/lists/*
 
-# Reinstall Pinocchio (runtime only)
+# Runtime stage - also install Pinocchio again
 RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
-    mkdir -p /tmp/pinocchio/build && cd /tmp/pinocchio/build && \
+    mkdir -p /tmp/pinocchio/build && \
+    cd /tmp/pinocchio/build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
-        -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
+             -DBUILD_PYTHON_INTERFACE=OFF -DBUILD_UNIT_TESTS=OFF && \
     make -j$(nproc) && make install && \
     rm -rf /tmp/pinocchio
 
-# Optional: strip shared libraries to reduce image size
-RUN find /usr/local -name "*.so*" -exec strip --strip-unneeded {} + || true
 
-# Copy only necessary parts of workspace
-COPY --from=builder ${ROS_WS}/install ${ROS_WS}/install
-COPY --from=builder ${ROS_WS}/src ${ROS_WS}/src
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
+    ros-$ROS_DISTRO-rqt-runtime-monitor \
+    ros-$ROS_DISTRO-rqt-robot-monitor \
+    ros-$ROS_DISTRO-plotjuggler \
+    ros-$ROS_DISTRO-plotjuggler-ros \
+    ros-$ROS_DISTRO-ros2controlcli \
+    ros-$ROS_DISTRO-joy \
+    ros-$ROS_DISTRO-rosbridge-suite \
+    ros-$ROS_DISTRO-moveit \
+    ros-$ROS_DISTRO-ros2-control \
+    ros-$ROS_DISTRO-ros2-controllers \
+    ros-${ROS_DISTRO}-joint-state-publisher-gui
+
+# Copy full workspace
+COPY --from=builder ${ROS_WS} ${ROS_WS}
 COPY --from=builder /root/mujoco-3.0.0 /root/mujoco-3.0.0
 
 WORKDIR ${ROS_WS}
