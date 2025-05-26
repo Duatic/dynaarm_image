@@ -52,6 +52,9 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-ros2controlcli \
     ros-$ROS_DISTRO-joy \
     ros-$ROS_DISTRO-rosbridge-suite && \
+    build-essential cmake pkg-config git \
+    libeigen3-dev libboost-all-dev \
+    robotpkg-py3-pinocchio \
     pip install pre-commit --break-system-packages && \
     apt-get clean
 
