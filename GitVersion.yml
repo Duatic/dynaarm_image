@@ -1,0 +1,6 @@
+mode: Mainline
+next-version: 0.0.5
+branches:
+  main:
+    increment: Patch
+    prevent-increment-of-merged-branch-version: true
