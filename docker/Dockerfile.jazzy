@@ -60,7 +60,7 @@ COPY scripts/colcon_mixin.sh /root/
 RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh && \
     bash /root/colcon_mixin.sh && colcon mixin update default
 
-COPY ../${REPOS_LIST} /root/${ROS_WS}
+COPY ../${REPOS_LIST} /root/${ROS_WS}/
 RUN vcs import . < /root/${ROS_WS}/${REPOS_LIST}
 
 # rosdep setup and install dependencies
