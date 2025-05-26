@@ -63,8 +63,7 @@ RUN mkdir -p /root && \
     tar -xzf /tmp/mujoco.tar.gz -C /root && \
     rm /tmp/mujoco.tar.gz
 
-
-# === Manually install Pinocchio ===
+# Install Pinocchio manually
 RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
     mkdir -p /tmp/pinocchio/build && \
     cd /tmp/pinocchio/build && \
@@ -87,7 +86,7 @@ RUN apt-get update && rosdep fix-permissions
 RUN rosdep update
 RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
-# Build ROS packages
+# Build
 RUN . /opt/ros/$ROS_DISTRO/setup.sh && \
     export CMAKE_PREFIX_PATH=/usr/local:$CMAKE_PREFIX_PATH && \
     colcon build --symlink-install --continue-on-error
@@ -104,10 +103,12 @@ ENV TZ="Europe/Berlin"
 ENV ROS_WS=/ros2_ws
 ENV DISPLAY=:0
 ENV QT_X11_NO_MITSHM=1
+ENV LD_LIBRARY_PATH=/opt/ros/$ROS_DISTRO/lib:/usr/local/lib:$LD_LIBRARY_PATH
 
-COPY --from=builder ${ROS_WS}/install ${ROS_WS}/install
-COPY --from=builder ${ROS_WS}/src ${ROS_WS}/src
+# Copy entire workspace to keep build/install/log valid
+COPY --from=builder ${ROS_WS} ${ROS_WS}
+COPY --from=builder /root/mujoco-3.0.0 /root/mujoco-3.0.0
 
 WORKDIR ${ROS_WS}
 
-CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source install/setup.bash && exec /bin/bash"]
+CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source /ros2_ws/install/setup.bash && exec /bin/bash"]
