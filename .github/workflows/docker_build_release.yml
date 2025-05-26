@@ -6,67 +6,47 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: duatic/dynaarm_image
+  VERSION_FILE: version.txt
 
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
-      id-token: write
-      attestations: write
+      contents: write  # for pushing updated version.txt
+      packages: write  # for pushing to GHCR
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Read version from file
+      - name: Read version from version.txt
         id: read-version
         run: |
-          if [[ ! -f version.txt ]]; then
-            echo "version.txt not found!" >&2
-            exit 1
-          fi
-          version_file=$(cat version.txt)
-          echo "VERSION_TXT=${version_file}" >> $GITHUB_ENV
+          version_txt=$(cat ${{ env.VERSION_FILE }})
+          echo "VERSION_TXT=${version_txt}" >> $GITHUB_ENV
 
-
-      - name: Get latest published tag from GHCR
-        id: get-latest-tag
+      - name: Check if tag exists in GHCR
+        id: check-tag
         run: |
-          image="ghcr.io/${{ github.repository_owner }}/dynaarm_image"
-          response=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://ghcr.io/v2/${{ github.repository_owner }}/dynaarm_image/tags/list")
+          image=ghcr.io/${{ github.repository_owner }}/dynaarm_image
+          version=${{ env.VERSION_TXT }}
 
-          # fallback if null or error
-          tags=$(echo "$response" | jq -r '.tags // [] | .[]' || echo "")
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/v2/${{ github.repository_owner }}/dynaarm_image/manifests/${version}")
 
-          if [[ -z "$tags" ]]; then
-            echo "No version tags found. Defaulting to 0.0.0"
-            echo "LATEST_TAG=0.0.0" >> $GITHUB_ENV
-          else
-            latest=$(echo "$tags" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
-            echo "Found latest semantic tag: $latest"
-            echo "LATEST_TAG=${latest}" >> $GITHUB_ENV
-          fi
-
-
-      - name: Determine final image version
-        id: determine-version
-        run: |
-          function version_gt() { [ "$(printf '%s\n' "$@" | sort -V | tail -n 1)" != "$1" ]; }
-
-          if version_gt "$LATEST_TAG" "$VERSION_TXT"; then
-            # Bump version from latest
-            IFS='.' read -r major minor patch <<< "$LATEST_TAG"
+          if [ "$status" = "200" ]; then
+            echo "Version already exists, will bump patch."
+            IFS='.' read -r major minor patch <<< "${version}"
             patch=$((patch + 1))
-            final_version="${major}.${minor}.${patch}"
+            new_version="${major}.${minor}.${patch}"
+            echo "FINAL_TAG=${new_version}" >> $GITHUB_ENV
+            echo "BUMPED_VERSION=true" >> $GITHUB_ENV
           else
-            final_version="$VERSION_TXT"
+            echo "Version is new."
+            echo "FINAL_TAG=${version}" >> $GITHUB_ENV
+            echo "BUMPED_VERSION=false" >> $GITHUB_ENV
           fi
-
-          echo "Using version: $final_version"
-          echo "FINAL_TAG=$final_version" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -87,3 +67,13 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.FINAL_TAG }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Update version.txt if bumped
+        if: env.BUMPED_VERSION == 'true'
+        run: |
+          echo "${{ env.FINAL_TAG }}" > ${{ env.VERSION_FILE }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add ${{ env.VERSION_FILE }}
+          git commit -m "Bump version to ${{ env.FINAL_TAG }}"
+          git push
