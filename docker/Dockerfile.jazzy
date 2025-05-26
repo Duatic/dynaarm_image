@@ -57,6 +57,13 @@ RUN apt-get update && \
     ros-$ROS_DISTRO-rosbridge-suite \
  && apt-get clean
 
+# Install MuJoCo 3.0.0
+RUN mkdir -p /root && \
+    wget -q https://github.com/deepmind/mujoco/releases/download/3.0.0/mujoco-3.0.0-linux-x86_64.tar.gz -O /tmp/mujoco.tar.gz && \
+    tar -xzf /tmp/mujoco.tar.gz -C /root && \
+    rm /tmp/mujoco.tar.gz
+
+
 # === Manually install Pinocchio ===
 RUN git clone --recursive https://github.com/stack-of-tasks/pinocchio.git /tmp/pinocchio && \
     mkdir -p /tmp/pinocchio/build && \
