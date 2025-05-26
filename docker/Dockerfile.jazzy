@@ -74,7 +74,8 @@ COPY ../${REPOS_LIST} /root/${ROS_WS}/
 RUN vcs import . < /root/${ROS_WS}/${REPOS_LIST}
 
 # rosdep setup and install dependencies
-RUN apt-get update && rosdep update
+RUN apt-get update && rosdep fix-permissions
+RUN rosdep update
 RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
 # Build
