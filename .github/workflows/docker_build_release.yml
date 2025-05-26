@@ -33,7 +33,10 @@ jobs:
 
           status=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.oci.image.manifest.v1+json" \
             "https://ghcr.io/v2/${{ github.repository_owner }}/dynaarm_image/manifests/${version}")
+
+          echo "Status code: $status"
 
           if [ "$status" = "200" ]; then
             echo "Version already exists, will bump patch."
@@ -47,6 +50,7 @@ jobs:
             echo "FINAL_TAG=${version}" >> $GITHUB_ENV
             echo "BUMPED_VERSION=false" >> $GITHUB_ENV
           fi
+
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
