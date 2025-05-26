@@ -112,10 +112,15 @@ RUN apt-get update && apt-get install -y \
 # Copy full workspace
 COPY --from=builder ${ROS_WS} ${ROS_WS}
 
-WORKDIR ${ROS_WS}
-
 # Ignore selected packages
 RUN touch ${ROS_WS}/src/cartesian_controllers/cartesian_controller_simulation/COLCON_IGNORE && \
     touch ${ROS_WS}/src/cartesian_controllers/cartesian_controller_tests/COLCON_IGNORE
+
+WORKDIR ${ROS_WS}
+
+# rosdep
+RUN apt-get update && rosdep fix-permissions
+RUN rosdep update
+RUN rosdep install -r --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y
 
 CMD ["/bin/bash", "-c", "source /opt/ros/$ROS_DISTRO/setup.bash && source /ros2_ws/install/setup.bash && exec /bin/bash"]
