@@ -19,7 +19,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0    # Required for GitVersion to access all tags
+          ref: main          # Ensure we're on a real branch
+          fetch-depth: 0     # Required for GitVersion to access full history
+
+      - name: Debug Git State (if GitVersion fails)
+        run: |
+          git status
+          git log --oneline -n 5 || echo "No commits?"
+          git describe --tags || echo "No tags found"
+          git branch -a
 
       - name: Install GitVersion
         uses: gittools/actions/gitversion/setup@v3.1.1
@@ -33,6 +41,9 @@ jobs:
           overrideConfig: |
             next-version: 1.0.0
             mode: Mainline
+
+      - name: Show resolved version
+        run: echo 'GitVersion: ${{ steps.version_step.outputs.majorMinorPatch }}'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
