@@ -31,7 +31,7 @@ jobs:
         uses: gittools/actions/gitversion/execute@v3.1.1
         with:
           overrideConfig: |
-            next-version: 0.0.5
+            next-version: 1.0.0
             mode: Mainline
 
       - name: Set up Docker Buildx
