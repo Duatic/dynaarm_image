@@ -43,7 +43,10 @@ jobs:
         id: set_version
         run: |
           version_txt="${{ env.VERSION_TXT }}"
-          latest_release="${{ env.LATEST_RELEASE_TAG }}"
+          latest_release="${LATEST_RELEASE_TAG#v}"  # strip leading "v" safely
+
+          echo "version.txt = $version_txt"
+          echo "latest release = $latest_release"
 
           if [[ "$version_txt" == "$latest_release" ]]; then
             IFS='.' read -r major minor patch <<< "$version_txt"
