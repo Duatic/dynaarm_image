@@ -1,4 +1,4 @@
-name: Create and publish a Docker image
+name: Build and publish Docker image with versioning
 
 on:
   workflow_dispatch:
@@ -8,57 +8,56 @@ env:
   IMAGE_NAME: duatic/dynaarm_image
 
 jobs:
-  build-and-push-image:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read        # Needed for GitVersion
-      packages: write       # Needed to push to GHCR
-      id-token: write       # Needed for OIDC in some registry setups
+      contents: write        # Needed to commit back version.txt
+      packages: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          ref: main          # Ensure we're on a real branch
-          fetch-depth: 0     # Required for GitVersion to access full history
 
-      - name: Debug Git State (if GitVersion fails)
+      - name: Read version.txt
+        id: read_version
         run: |
-          git status
-          git log --oneline -n 5 || echo "No commits?"
-          git describe --tags || echo "No tags found"
-          git branch -a
+          version=$(cat version.txt)
+          echo "VERSION_TXT=$version" >> $GITHUB_ENV
+          echo "Using version.txt = $version"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Force branch context (avoid detached HEAD)
+      - name: Determine final version
+        id: versioning
         run: |
-          git checkout -B main
+          VERSION=$VERSION_TXT
+          echo "Checking if version $VERSION exists in GHCR..."
 
-      - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v3.1.1
-        with:
-          versionSpec: '6.0.x'
+          AUTH_HEADER="Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"
+          ACCEPT_HEADER="Accept: application/vnd.oci.image.manifest.v1+json"
+          REPO="ghcr.io/${{ github.repository_owner }}/dynaarm_image"
 
-      - name: Determine GitVersion
-        id: version_step
-        uses: gittools/actions/gitversion/execute@v3.1.1
-        with:
-          overrideConfig: |
-            next-version: 1.0.0
-            mode: Mainline
+          response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "$AUTH_HEADER" \
+            -H "$ACCEPT_HEADER" \
+            "https://ghcr.io/v2/${{ github.repository_owner }}/dynaarm_image/manifests/$VERSION")
 
-      - name: Show resolved version
-        run: |
-          echo 'GitVersion: ${{ steps.version_step.outputs.majorMinorPatch }}'
+          if [ "$response" = "200" ]; then
+            echo "Version already exists. Bumping patch..."
+            IFS='.' read -r major minor patch <<< "$VERSION"
+            patch=$((patch + 1))
+            VERSION="$major.$minor.$patch"
+            echo "Bumped to version $VERSION"
+            echo "BUMPED=true" >> $GITHUB_ENV
+          else
+            echo "Version $VERSION is new."
+            echo "BUMPED=false" >> $GITHUB_ENV
+          fi
+
+          echo "FINAL_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -72,5 +71,15 @@ jobs:
           file: ./docker/Dockerfile.jazzy
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version_step.outputs.majorMinorPatch }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.FINAL_VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Update version.txt if bumped
+        if: env.BUMPED == 'true'
+        run: |
+          echo "${{ env.FINAL_VERSION }}" > version.txt
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add version.txt
+          git commit -m "Bump version.txt to ${{ env.FINAL_VERSION }}"
+          git push
