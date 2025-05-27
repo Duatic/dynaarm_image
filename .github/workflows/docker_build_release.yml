@@ -1,4 +1,4 @@
-name: Manual Docker release with auto versioning
+name: Manual Docker release with version.txt logic
 
 on:
   workflow_dispatch:
@@ -6,17 +6,25 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: duatic/dynaarm_image
+  VERSION_FILE: version.txt
 
 jobs:
   docker-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      packages: write
+      contents: write       # for updating version.txt + release
+      packages: write       # for GHCR
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Read version.txt
+        id: read_version
+        run: |
+          version=$(cat ${{ env.VERSION_FILE }})
+          echo "VERSION_TXT=$version" >> $GITHUB_ENV
+          echo "Read version.txt: $version"
 
       - name: Get latest GitHub release
         id: get_latest
@@ -25,16 +33,29 @@ jobs:
             https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
 
           if [[ "$latest" == "null" || -z "$latest" ]]; then
-            version="1.0.0"
-          else
-            base=${latest#v}
-            IFS='.' read -r major minor patch <<< "$base"
-            patch=$((patch + 1))
-            version="${major}.${minor}.${patch}"
+            latest="v0.0.0"
           fi
 
-          echo "RELEASE_VERSION=$version" >> $GITHUB_ENV
-          echo "Final version will be: $version"
+          echo "LATEST_RELEASE_TAG=$latest" >> $GITHUB_ENV
+          echo "Latest GitHub release: $latest"
+
+      - name: Determine final version
+        id: set_version
+        run: |
+          version_txt="${{ env.VERSION_TXT }}"
+          latest_release="${{ env.LATEST_RELEASE_TAG#v }}"
+
+          if [[ "$version_txt" == "$latest_release" ]]; then
+            IFS='.' read -r major minor patch <<< "$version_txt"
+            patch=$((patch + 1))
+            final="${major}.${minor}.${patch}"
+            echo "Matched release tag, bumped to: $final"
+          else
+            final="$version_txt"
+            echo "Using version.txt: $final"
+          fi
+
+          echo "FINAL_VERSION=$final" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -53,19 +74,18 @@ jobs:
           file: ./docker/Dockerfile.jazzy
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.RELEASE_VERSION }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.FINAL_VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ env.RELEASE_VERSION }}
-          name: Release v${{ env.RELEASE_VERSION }}
+          tag_name: v${{ env.FINAL_VERSION }}
+          name: Release v${{ env.FINAL_VERSION }}
           body: |
-            Automated Docker release v${{ env.RELEASE_VERSION }}
+            Automated Docker release v${{ env.FINAL_VERSION }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
       - name: Update version.txt
         run: |
