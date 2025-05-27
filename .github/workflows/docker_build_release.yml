@@ -1,4 +1,4 @@
-name: Manual Docker release with version.txt logic
+name: Build and Publish Docker image on GitHub Release
 
 on:
   workflow_dispatch:
@@ -43,19 +43,22 @@ jobs:
         id: set_version
         run: |
           version_txt="${{ env.VERSION_TXT }}"
-          latest_release="${{ env.LATEST_RELEASE_TAG }}"
+          latest_release="${{ env.LATEST_RELEASE_TAGv }}"
 
           if [[ "$version_txt" == "$latest_release" ]]; then
             IFS='.' read -r major minor patch <<< "$version_txt"
             patch=$((patch + 1))
             final="${major}.${minor}.${patch}"
             echo "Matched release tag, bumped to: $final"
+            echo "UPDATED_VERSION=true" >> $GITHUB_ENV
           else
             final="$version_txt"
             echo "Using version.txt: $final"
+            echo "UPDATED_VERSION=false" >> $GITHUB_ENV
           fi
 
           echo "FINAL_VERSION=$final" >> $GITHUB_ENV
+
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -87,7 +90,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update version.txt
+      - name: Update version.txt if bumped
+        if: env.UPDATED_VERSION == 'true'
         run: |
           echo "${{ env.FINAL_VERSION }}" > ${{ env.VERSION_FILE }}
           git config user.name "github-actions"
