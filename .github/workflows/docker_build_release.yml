@@ -29,6 +29,15 @@ jobs:
           git describe --tags || echo "No tags found"
           git branch -a
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Force branch context (avoid detached HEAD)
+        run: |
+          git checkout -B main
+
       - name: Install GitVersion
         uses: gittools/actions/gitversion/setup@v3.1.1
         with:
