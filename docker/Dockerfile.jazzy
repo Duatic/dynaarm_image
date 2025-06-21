@@ -66,6 +66,11 @@ COPY scripts/colcon_mixin.sh /root/
 RUN sed -i 's/\r$//' /root/colcon_mixin.sh && chmod +x /root/colcon_mixin.sh
 RUN bash /root/colcon_mixin.sh && colcon mixin update default
 
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN \
+    GIT_AUTH_TOKEN=$(cat /run/secrets/GIT_AUTH_TOKEN) && \
+    git config --global credential.helper store && \
+    echo "https://${GIT_AUTH_TOKEN}:x-oauth-basic@github.com" > ~/.git-credentials
+
 # Clone repos
 COPY ../${REPOS_LIST} /root/${ROS_WS}/
 RUN vcs import ${ROS_WS}/src < /root/${ROS_WS}/${REPOS_LIST}
