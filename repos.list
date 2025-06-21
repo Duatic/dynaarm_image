@@ -19,6 +19,14 @@ repositories:
     type: git
     url: https://github.com/Duatic/dynaarm_description.git
     version: main
+  alpha_demo:
+    type: git
+    url: https://github.com/Duatic/alpha_demo.git
+    version: main
+  alpha_description:
+    type: git
+    url: https://github.com/Duatic/alpha_description.git
+    version: main
   dynaarm_driver:
     type: git
     url: https://github.com/Duatic/dynaarm_driver.git
@@ -35,4 +43,12 @@ repositories:
     type: git
     url: https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers.git
     version: ros2
+  zimmer_gripper_description:
+    type: git
+    url: https://github.com/Duatic/zimmer_gripper_description.git
+    version: main
+  realsense-ros:
+    type: git
+    url: https://github.com/IntelRealSense/realsense-ros.git
+    version: ros2-master
   
